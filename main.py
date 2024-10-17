@@ -7,7 +7,7 @@ app = FastAPI()
 # html 문서를 위한 객체
 templates = Jinja2Templates(directory="templates")
 
-# localhost:8000/
+# 홈 : localhost:8000/
 @app.get("/")
 async def home(request: Request):
     data = "hello my project"
@@ -15,7 +15,7 @@ async def home(request: Request):
         "index.html",
         {"request": request, "data": data}
         )
-# localhost:8000/dashboard
+# 대시보드처리 : localhost:8000/dashboard
 @app.get("/dashboard")
 async def dashboard(request: Request):
     data = "hello my project"
