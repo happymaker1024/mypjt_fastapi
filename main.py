@@ -8,8 +8,16 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 # localhost:8000/
-@app.get("/dashboard")
+@app.get("/")
 async def home(request: Request):
+    data = "hello my project"
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request, "data": data}
+        )
+# localhost:8000/dashboard
+@app.get("/dashboard")
+async def dashboard(request: Request):
     data = "hello my project"
     return templates.TemplateResponse(
         "dashboard.html",
