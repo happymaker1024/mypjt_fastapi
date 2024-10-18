@@ -1,0 +1,25 @@
+<!-- base.html 파일 상속 받음 -->
+{% extends 'base.html' %}
+<!-- 현재 페이지의 내용 -->
+ 
+{% block head %}    
+<link rel="stylesheet" href="/static/css/main.css">
+<title>todo 앱스</title>
+{% endblock head %}
+
+{% block contents %}
+    <main>
+        <a href="/"><p class="head_img"></p></a>
+        <h4>나의 성장을 위한 미션</h4>
+        <br>        
+    </main>
+        <form action="/edit/{{ todo.id }}" method="post">
+            <textarea name="task" rows="5">{{ todo.task }}</textarea>
+            <label for="completed">Done?</label>
+            <input type="checkbox" name="completed" 
+            {% if todo.completed %}
+            checked
+            {% endif %}>
+            <button type="submit">Save</button>
+        </form>
+{% endblock contents %}

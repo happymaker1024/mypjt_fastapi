@@ -1,8 +1,10 @@
-from fastapi import FastAPI, Form, Request, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Form, Request, Depends, status
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from database import engine, SessionLocal
 from sqlalchemy.orm import Session
+from face_recog import FaceRecog, video_process
 import models
 
 app = FastAPI()
@@ -21,6 +23,10 @@ def get_db():
 
 # html 문서를 위한 객체
 templates = Jinja2Templates(directory="templates")
+
+
+# static 폴더(정적파일 폴더)를 app에 연결
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # 홈 : localhost:8000/
 @app.get("/")
@@ -71,13 +77,83 @@ async def create_or_update_sales(request: Request, db: Session = Depends(get_db)
     # 방법2 url=app.url_path_for("dashboard") <- 엔드포인트 함수 호출을 의미함
     return RedirectResponse(url=app.url_path_for("dashboard"), status_code=303)
 
-
-# /face_recog
+## 비디오 피드 엔드포인트
 @app.get("/face_recog")
-async def face_recog(request: Request):
-    # 비즈니스 로직 넣기
-    print("얼굴인식 로직")
+def face_recog():
+    # FaceRecog 인스턴스 생성
+    print("얼굴인식 스트리밍")
+    face_recog_instance = FaceRecog()    
+    # 스트리밍 응답
+    return StreamingResponse(video_process(face_recog_instance), media_type="multipart/x-mixed-replace; boundary=frame")
+
+# HTML 페이지 렌더링 엔드포인트
+@app.get("/face_recog_view")
+def get_video_page(request: Request):
+    print("얼굴인식 html 렌더링 페이지 ")
+    return templates.TemplateResponse("face_recog.html", {"request": request})
+
+
+# todo 앱 엔드포인들
+# localhost:8000/
+@app.get("/todo_list")
+async def todo_list(request: Request, db_ss: Session = Depends(get_db)):
+    # db 객체 생성, 세션연결하기 <- 의존성 주임으로 처리
+    # 테이블 조회
+    todos = db_ss.query(models.Todo) \
+        .order_by(models.Todo.id.desc())
+    print(type(todos))
+    # db 조회한 결과를 출력함
+    # for todo in todos:
+    #     print(todo.id, todo.task, todo.completed)
+
     return templates.TemplateResponse(
-    "face_recog.html",
-    {"request": request}
-    )
+        "todos/todo_list.html",
+        {"request": request, "todos": todos}
+        )
+
+@app.post("/add")
+async def add(request: Request, task: str = Form(...), 
+              db_ss: Session = Depends(get_db)):
+    # 클라이언트에서 textarea에서 입력 데이터 넘어온것 확인
+    print(task)
+    # 클라이언트에서 넘어온 task를 Todo 객체로 생성
+    todo = models.Todo(task=task)
+    # 의존성 주입에서 처리함 Depends(get_db) : 엔진객체생성, 세션연결
+    # db 테이블에 task 저장하기
+    print(todo)
+    db_ss.add(todo)
+    # db에 실제 저장, commit
+    db_ss.commit()
+    # home 엔드포인함수로 제어권을 넘김
+    return RedirectResponse(url=app.url_path_for("todo_list"), 
+                            status_code=status.HTTP_303_SEE_OTHER)
+
+# 문제 : todo 1개 삭제
+@app.get("/delete/{todo_id}")
+async def add(request: Request, todo_id: int, db_ss: Session = Depends(get_db)):
+    todo = db_ss.query(models.Todo).filter(models.Todo.id == todo_id).first()
+    db_ss.delete(todo)
+    db_ss.commit()
+    return RedirectResponse(url=app.url_path_for("todo_list"), status_code=status.HTTP_303_SEE_OTHER)
+
+# todo 수정을 위한 조회
+@app.get("/edit/{todo_id}")
+async def edit(request: Request, todo_id: int , db_ss: Session = Depends(get_db)):
+    # 요청 수정 처리
+    todo = db_ss.query(models.Todo).filter(models.Todo.id==todo_id).first()
+    print(todo.task)
+
+    return templates.TemplateResponse(
+        "todos/edit.html",
+        {"request": request, "todo": todo}
+        )
+# todo 업데이터 처리
+@app.post("/edit/{todo_id}")
+async def add(request: Request, todo_id: int, task: str = Form(...), completed: bool = Form(False), db: Session = Depends(get_db)):
+    todo = db.query(models.Todo).filter(models.Todo.id == todo_id).first()
+    todo.task = task
+    todo.completed = completed
+    db.commit()
+    return RedirectResponse(url=app.url_path_for("todo_list"), status_code=status.HTTP_303_SEE_OTHER)
+
+
